@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 import { build } from "esbuild";
 import { format, resolveConfig } from "prettier";
@@ -29,7 +30,8 @@ try {
   await rm(temporaryDirectory, { recursive: true });
 }
 const outputFilename = fileURLToPath(outputPath);
-const generated = await format(JSON.stringify(await generator.createOpenApiDocument()), {
+const generatedDocument = JSON.parse(JSON.stringify(await generator.createOpenApiDocument()));
+const generated = await format(JSON.stringify(generatedDocument), {
   ...(await resolveConfig(outputFilename)),
   parser: "json",
   filepath: outputFilename,
@@ -37,7 +39,13 @@ const generated = await format(JSON.stringify(await generator.createOpenApiDocum
 
 if (checking) {
   const current = await readFile(outputPath, "utf8").catch(() => "");
-  if (current !== generated) {
+  let currentDocument = null;
+  try {
+    currentDocument = JSON.parse(current);
+  } catch {
+    // 存在しないファイルと不正なJSONは、Schema差分として同じエラーを返す。
+  }
+  if (!isDeepStrictEqual(currentDocument, generatedDocument)) {
     throw new Error(
       "docs/openapi.jsonがSchemaと一致しません。pnpm openapi:generateを実行してください。",
     );

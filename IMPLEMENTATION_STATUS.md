@@ -454,7 +454,7 @@ pnpm openapi:generate
 pnpm openapi:check
 ```
 
-`openapi:check`は生成結果と`docs/openapi.json`の差分を検査します。HTTP APIが存在しないため、Path登録とRedoclyによるAPI Route検証は行っていません。
+`openapi:check`は生成結果と`docs/openapi.json`をJSON構造として比較します。OSによる改行やプロパティ順の差は許容しますが、Schema、制約、必須項目などの構造差は失敗します。HTTP APIが存在しないため、Path登録とRedoclyによるAPI Route検証は行っていません。
 
 ## 18. コード構成
 
