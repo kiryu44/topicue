@@ -1,0 +1,6 @@
+.next
+node_modules
+public/standalone-runtime.js
+pnpm-lock.yaml
+playwright-report
+test-results

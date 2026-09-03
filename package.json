@@ -1,0 +1,54 @@
+{
+  "name": "topicue",
+  "version": "0.1.0",
+  "description": "ブラウザで配信用のお題Packを作成し、3Dダイス入りのOBS用HTMLを生成します。",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=11.0.0 <12"
+  },
+  "scripts": {
+    "dev": "pnpm standalone:build && next dev",
+    "build": "pnpm openapi:check && pnpm standalone:build && next build --webpack",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix --max-warnings=0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:integration": "pnpm standalone:build && vitest run --project integration --passWithNoTests",
+    "test:distribution": "vitest run --project distribution",
+    "test:e2e": "pnpm standalone:build && playwright test",
+    "openapi:generate": "node scripts/generate-openapi.mjs",
+    "openapi:check": "node scripts/generate-openapi.mjs --check",
+    "standalone:build": "node scripts/build-standalone-runtime.mjs"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.185.1",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@asteasolutions/zod-to-openapi": "9.1.0",
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@types/three": "0.185.4",
+    "esbuild": "0.28.2",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.4",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  }
+}

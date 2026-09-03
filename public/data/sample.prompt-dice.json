@@ -1,0 +1,139 @@
+{
+  "format": "stream-prompt-dice",
+  "schemaVersion": 1,
+  "exportedAt": "2026-09-01T00:00:00.000Z",
+  "pack": {
+    "schemaVersion": 1,
+    "mode": "deck",
+    "name": "JSON Importサンプル",
+    "description": "JSON ImportとOBS用HTML出力を試すためのサンプルです。",
+    "locale": "ja-JP",
+    "faces": [
+      {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "label": "自己紹介",
+        "shortLabel": "自己紹介",
+        "enabled": true,
+        "prompts": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "audienceTitle": "最近の自分を一言で表すと？",
+            "audienceBody": "その言葉を選んだ理由も話してみましょう。",
+            "hostNotes": "話しやすい範囲で答えてもらい、理由を聞いて話題を広げます。",
+            "followUpQuestions": ["いつからそう感じていますか？"],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000002",
+        "label": "好きなもの",
+        "shortLabel": "好きなもの",
+        "enabled": true,
+        "prompts": [
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "audienceTitle": "最近夢中になっているものは？",
+            "audienceBody": "好きになったきっかけも教えてください。",
+            "followUpQuestions": ["人におすすめするなら何から紹介しますか？"],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000003",
+        "label": "配信",
+        "shortLabel": "配信",
+        "enabled": true,
+        "prompts": [
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "audienceTitle": "配信で挑戦してみたいことは？",
+            "audienceBody": "実現するための最初の一歩も考えてみましょう。",
+            "followUpQuestions": ["誰と一緒に挑戦したいですか？"],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000004",
+        "label": "思い出",
+        "shortLabel": "思い出",
+        "enabled": true,
+        "prompts": [
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "audienceTitle": "今でも覚えている楽しい思い出は？",
+            "audienceBody": "その場の様子が伝わるように話してみましょう。",
+            "followUpQuestions": ["今の自分に影響していますか？"],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000005",
+        "label": "これから",
+        "shortLabel": "これから",
+        "enabled": true,
+        "prompts": [
+          {
+            "id": "20000000-0000-4000-8000-000000000005",
+            "audienceTitle": "一年後にできるようになりたいことは？",
+            "audienceBody": "達成したときの自分を想像してみましょう。",
+            "followUpQuestions": ["今月できることは何ですか？"],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000006",
+        "label": "フリー",
+        "shortLabel": "フリー",
+        "enabled": true,
+        "prompts": [
+          {
+            "id": "20000000-0000-4000-8000-000000000006",
+            "audienceTitle": "今いちばん話したいことは？",
+            "audienceBody": "自由に話を広げてください。",
+            "followUpQuestions": ["もっと詳しく聞かせてください。"],
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "selection": {
+      "mode": "shuffle_bag",
+      "policy": "face_uniform",
+      "resetWhenExhausted": true
+    },
+    "appearance": {
+      "themeId": "idol_pop",
+      "background": "transparent",
+      "bodyColor": "#A891FF",
+      "edgeColor": "#E8FAFF",
+      "textColor": "#24213B",
+      "accentColor": "#FF9ED6",
+      "fontPreset": "system_sans",
+      "resultCardPosition": "bottom",
+      "resultCardMaxWidthPx": 840,
+      "quality": "balanced"
+    },
+    "animation": {
+      "durationMs": 1800,
+      "revealDelayMs": 180,
+      "resultVisibleMs": null,
+      "motionIntensity": "medium",
+      "reducedMotionBehavior": "respect_system",
+      "rollSoundEnabled": true,
+      "landingSoundEnabled": true
+    },
+    "behavior": {
+      "rollOnLoad": false,
+      "allowOverlayClick": true,
+      "allowKeyboard": true,
+      "keepResultVisible": true,
+      "showCategoryBeforePrompt": true,
+      "targetFps": 60
+    }
+  }
+}

@@ -1,0 +1,10 @@
+.github/
+.env.example
+.prettierignore
+.prettierrc.json
+IMPLEMENTATION_STATUS.md
+README.md
+eslint.config.mjs
+playwright.config.ts
+tests/
+vitest.config.ts

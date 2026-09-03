@@ -1,0 +1,366 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Topicue Schemas",
+    "version": "0.1.0",
+    "description": "Topicueはローカルファーストで、現行版にHTTP API endpointはありません。Pack編集、JSON Export、OBS公開用のデータ契約をcomponents.schemasへ生成しています。"
+  },
+  "components": {
+    "schemas": {
+      "PackExportV1": {
+        "type": "object",
+        "properties": {
+          "format": { "type": "string", "enum": ["stream-prompt-dice"] },
+          "schemaVersion": { "type": "number", "enum": [1] },
+          "exportedAt": { "type": "string", "format": "date-time" },
+          "pack": { "$ref": "#/components/schemas/PromptPackConfigV1" }
+        },
+        "required": ["format", "schemaVersion", "exportedAt", "pack"],
+        "additionalProperties": false
+      },
+      "PromptPackConfigV1": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": { "type": "number", "enum": [1] },
+          "mode": { "type": "string", "enum": ["direct", "deck"] },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "locale": { "type": "string", "enum": ["ja-JP", "en-US"] },
+          "faces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "format": "uuid" },
+                "label": { "type": "string" },
+                "shortLabel": { "type": "string" },
+                "enabled": { "type": "boolean" },
+                "prompts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "format": "uuid" },
+                      "audienceTitle": { "type": "string" },
+                      "audienceBody": { "type": "string" },
+                      "hostNotes": { "type": "string" },
+                      "followUpQuestions": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "maxItems": 10
+                      },
+                      "suggestedDurationSeconds": {
+                        "type": "integer",
+                        "minimum": 15,
+                        "maximum": 3600
+                      },
+                      "enabled": { "type": "boolean" }
+                    },
+                    "required": ["id", "audienceTitle", "followUpQuestions", "enabled"],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 100
+                }
+              },
+              "required": ["id", "label", "enabled", "prompts"],
+              "additionalProperties": false
+            },
+            "minItems": 3,
+            "maxItems": 20
+          },
+          "selection": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["independent", "no_immediate_repeat", "shuffle_bag", "elimination"]
+              },
+              "policy": { "type": "string", "enum": ["face_uniform", "prompt_uniform"] },
+              "resetWhenExhausted": { "type": "boolean" }
+            },
+            "required": ["mode", "policy", "resetWhenExhausted"],
+            "additionalProperties": false
+          },
+          "appearance": {
+            "type": "object",
+            "properties": {
+              "themeId": {
+                "type": "string",
+                "enum": [
+                  "idol_pop",
+                  "cozy_pastel",
+                  "cyber_navy",
+                  "variety_show",
+                  "dark_minimal",
+                  "mystery"
+                ]
+              },
+              "background": { "type": "string", "enum": ["transparent", "dimmed"] },
+              "bodyColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "edgeColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "textColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "accentColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "fontPreset": {
+                "type": "string",
+                "enum": ["system_sans", "rounded", "gothic", "mincho", "monospace"]
+              },
+              "resultCardPosition": { "type": "string", "enum": ["top", "center", "bottom"] },
+              "resultCardMaxWidthPx": { "type": "integer", "minimum": 280, "maximum": 1600 },
+              "quality": { "type": "string", "enum": ["low", "balanced", "high"] }
+            },
+            "required": [
+              "themeId",
+              "background",
+              "bodyColor",
+              "edgeColor",
+              "textColor",
+              "accentColor",
+              "fontPreset",
+              "resultCardPosition",
+              "resultCardMaxWidthPx",
+              "quality"
+            ],
+            "additionalProperties": false
+          },
+          "animation": {
+            "type": "object",
+            "properties": {
+              "durationMs": { "type": "integer", "minimum": 300, "maximum": 10000 },
+              "revealDelayMs": { "type": "integer", "minimum": 0, "maximum": 5000 },
+              "resultVisibleMs": {
+                "type": ["integer", "null"],
+                "minimum": 1000,
+                "maximum": 600000
+              },
+              "motionIntensity": { "type": "string", "enum": ["low", "medium", "high"] },
+              "reducedMotionBehavior": {
+                "type": "string",
+                "enum": ["respect_system", "always_reduce", "never_reduce"]
+              },
+              "rollSoundEnabled": { "type": "boolean" },
+              "landingSoundEnabled": { "type": "boolean" }
+            },
+            "required": [
+              "durationMs",
+              "revealDelayMs",
+              "resultVisibleMs",
+              "motionIntensity",
+              "reducedMotionBehavior",
+              "rollSoundEnabled",
+              "landingSoundEnabled"
+            ],
+            "additionalProperties": false
+          },
+          "behavior": {
+            "type": "object",
+            "properties": {
+              "rollOnLoad": { "type": "boolean" },
+              "allowOverlayClick": { "type": "boolean" },
+              "allowKeyboard": { "type": "boolean" },
+              "keepResultVisible": { "type": "boolean" },
+              "showCategoryBeforePrompt": { "type": "boolean" },
+              "targetFps": {
+                "anyOf": [
+                  { "type": "number", "enum": [30] },
+                  { "type": "number", "enum": [60] }
+                ]
+              }
+            },
+            "required": [
+              "rollOnLoad",
+              "allowOverlayClick",
+              "allowKeyboard",
+              "keepResultVisible",
+              "showCategoryBeforePrompt",
+              "targetFps"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "mode",
+          "name",
+          "locale",
+          "faces",
+          "selection",
+          "appearance",
+          "animation",
+          "behavior"
+        ],
+        "additionalProperties": false
+      },
+      "PublicStandaloneConfigV1": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": { "type": "number", "enum": [1] },
+          "mode": { "type": "string", "enum": ["direct", "deck"] },
+          "name": { "type": "string" },
+          "locale": { "type": "string", "enum": ["ja-JP", "en-US"] },
+          "faces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "format": "uuid" },
+                "label": { "type": "string" },
+                "shortLabel": { "type": "string" },
+                "enabled": { "type": "boolean" },
+                "prompts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "format": "uuid" },
+                      "audienceTitle": { "type": "string" },
+                      "audienceBody": { "type": "string" },
+                      "enabled": { "type": "boolean" }
+                    },
+                    "required": ["id", "audienceTitle", "enabled"],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 100
+                }
+              },
+              "required": ["id", "label", "enabled", "prompts"],
+              "additionalProperties": false
+            },
+            "minItems": 3,
+            "maxItems": 20
+          },
+          "selection": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["independent", "no_immediate_repeat", "shuffle_bag", "elimination"]
+              },
+              "policy": { "type": "string", "enum": ["face_uniform", "prompt_uniform"] },
+              "resetWhenExhausted": { "type": "boolean" }
+            },
+            "required": ["mode", "policy", "resetWhenExhausted"],
+            "additionalProperties": false
+          },
+          "appearance": {
+            "type": "object",
+            "properties": {
+              "themeId": {
+                "type": "string",
+                "enum": [
+                  "idol_pop",
+                  "cozy_pastel",
+                  "cyber_navy",
+                  "variety_show",
+                  "dark_minimal",
+                  "mystery"
+                ]
+              },
+              "background": { "type": "string", "enum": ["transparent", "dimmed"] },
+              "bodyColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "edgeColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "textColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "accentColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "fontPreset": {
+                "type": "string",
+                "enum": ["system_sans", "rounded", "gothic", "mincho", "monospace"]
+              },
+              "resultCardPosition": { "type": "string", "enum": ["top", "center", "bottom"] },
+              "resultCardMaxWidthPx": { "type": "integer", "minimum": 280, "maximum": 1600 },
+              "quality": { "type": "string", "enum": ["low", "balanced", "high"] }
+            },
+            "required": [
+              "themeId",
+              "background",
+              "bodyColor",
+              "edgeColor",
+              "textColor",
+              "accentColor",
+              "fontPreset",
+              "resultCardPosition",
+              "resultCardMaxWidthPx",
+              "quality"
+            ],
+            "additionalProperties": false
+          },
+          "animation": {
+            "type": "object",
+            "properties": {
+              "durationMs": { "type": "integer", "minimum": 300, "maximum": 10000 },
+              "revealDelayMs": { "type": "integer", "minimum": 0, "maximum": 5000 },
+              "resultVisibleMs": {
+                "type": ["integer", "null"],
+                "minimum": 1000,
+                "maximum": 600000
+              },
+              "motionIntensity": { "type": "string", "enum": ["low", "medium", "high"] },
+              "reducedMotionBehavior": {
+                "type": "string",
+                "enum": ["respect_system", "always_reduce", "never_reduce"]
+              },
+              "rollSoundEnabled": { "type": "boolean" },
+              "landingSoundEnabled": { "type": "boolean" }
+            },
+            "required": [
+              "durationMs",
+              "revealDelayMs",
+              "resultVisibleMs",
+              "motionIntensity",
+              "reducedMotionBehavior",
+              "rollSoundEnabled",
+              "landingSoundEnabled"
+            ],
+            "additionalProperties": false
+          },
+          "behavior": {
+            "type": "object",
+            "properties": {
+              "rollOnLoad": { "type": "boolean" },
+              "allowOverlayClick": { "type": "boolean" },
+              "allowKeyboard": { "type": "boolean" },
+              "keepResultVisible": { "type": "boolean" },
+              "showCategoryBeforePrompt": { "type": "boolean" },
+              "targetFps": {
+                "anyOf": [
+                  { "type": "number", "enum": [30] },
+                  { "type": "number", "enum": [60] }
+                ]
+              }
+            },
+            "required": [
+              "rollOnLoad",
+              "allowOverlayClick",
+              "allowKeyboard",
+              "keepResultVisible",
+              "showCategoryBeforePrompt",
+              "targetFps"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "mode",
+          "name",
+          "locale",
+          "faces",
+          "selection",
+          "appearance",
+          "animation",
+          "behavior"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {},
+  "webhooks": {},
+  "x-generated-by": "pnpm openapi:generate",
+  "x-topicue-data-model": {
+    "packStorage": "browser-indexeddb",
+    "obsSessionStorage": "standalone-local-storage",
+    "serverPersistence": "none"
+  }
+}
