@@ -84,8 +84,15 @@ const app = document.querySelector<HTMLElement>("#app");
 if (app === null) throw new Error("Missing app root");
 app.dataset["visualState"] = "idle";
 const rollInstruction = getRollInstruction(config.behavior);
+const actionNames = {
+  cancelReset: "cancel-reset",
+  confirmReset: "confirm-reset",
+  exportHistory: "export-history",
+  requestReset: "request-reset",
+} as const;
+const interactiveUiSelector = "[data-interactive-ui]";
 
-app.innerHTML = `<section class="standalone-stage" tabindex="0" aria-label="トークダイス。${rollInstruction}"><div class="standalone-renderer" role="img" aria-label="3Dトークダイス"></div><div class="standalone-status" aria-live="polite">${rollInstruction}</div><article class="standalone-card" hidden><small></small><h1></h1><p></p></article><aside class="standalone-resume" hidden><strong>前回のセッションがあります</strong><p></p><button type="button" data-action="resume">続きから振る</button><button type="button" data-action="restart">最初からやり直す</button></aside><nav class="standalone-controls" aria-label="ダイス操作"><button type="button" data-action="roll">振る</button><button type="button" data-action="reset">履歴をリセット</button><button type="button" data-action="history">履歴JSON</button></nav></section>`;
+app.innerHTML = `<section class="standalone-stage" tabindex="0" aria-label="トークダイス。${rollInstruction}"><div class="standalone-renderer" role="img" aria-label="3Dトークダイス"></div><div class="standalone-status" aria-live="polite" hidden></div><article class="standalone-card" data-interactive-ui hidden><small></small><h1></h1><p></p></article><aside class="standalone-history-panel" data-interactive-ui aria-labelledby="standalone-history-title" hidden><h2 id="standalone-history-title">履歴</h2><p><strong data-history-count>0</strong>件</p><button type="button" data-interactive-ui data-action="${actionNames.exportHistory}">履歴を書き出す</button><button type="button" data-interactive-ui data-action="${actionNames.requestReset}">履歴をリセット</button></aside><div class="standalone-dialog-backdrop" data-interactive-ui hidden><section class="standalone-dialog" role="dialog" aria-modal="true" aria-labelledby="standalone-reset-title" aria-describedby="standalone-reset-description"><h2 id="standalone-reset-title">履歴をリセットしますか？</h2><p id="standalone-reset-description">この操作は元に戻せません。</p><div class="standalone-dialog-actions"><button type="button" data-interactive-ui data-action="${actionNames.cancelReset}">キャンセル</button><button type="button" data-interactive-ui data-action="${actionNames.confirmReset}">リセット</button></div></section></div></section>`;
 
 const requiredElement = <T extends Element>(selector: string): T => {
   const element = app?.querySelector<T>(selector);
@@ -96,9 +103,20 @@ const requiredElement = <T extends Element>(selector: string): T => {
 const rendererHost = requiredElement<HTMLElement>(".standalone-renderer");
 const stage = requiredElement<HTMLElement>(".standalone-stage");
 const card = requiredElement<HTMLElement>(".standalone-card");
-const resumePanel = requiredElement<HTMLElement>(".standalone-resume");
+const historyPanel = requiredElement<HTMLElement>(".standalone-history-panel");
+const historyCount = requiredElement<HTMLElement>("[data-history-count]");
+const resetDialogBackdrop = requiredElement<HTMLElement>(".standalone-dialog-backdrop");
+const resetDialog = requiredElement<HTMLElement>(".standalone-dialog");
+const exportHistoryButton = requiredElement<HTMLButtonElement>(
+  `[data-action="${actionNames.exportHistory}"]`,
+);
+const confirmResetButton = requiredElement<HTMLButtonElement>(
+  `[data-action="${actionNames.confirmReset}"]`,
+);
 const status = requiredElement<HTMLElement>(".standalone-status");
 let renderer: DieRenderer | null = null;
+let focusBeforeHistory: HTMLElement | null = null;
+let focusBeforeDialog: HTMLElement | null = null;
 
 const loadState = (): StoredState => {
   try {
@@ -116,6 +134,51 @@ const save = (): void => {
   } catch {
     // OBSのLocal fileで保存が拒否されても抽選は続行する。
   }
+};
+
+const focusedElement = (): HTMLElement | null => {
+  return document.activeElement instanceof HTMLElement ? document.activeElement : null;
+};
+
+const restoreFocus = (element: HTMLElement | null): void => {
+  if (element !== null && element.isConnected && element.closest("[hidden]") === null) {
+    element.focus();
+  } else {
+    stage.focus();
+  }
+};
+
+const updateHistoryCount = (): void => {
+  historyCount.textContent = String(state.history.length);
+};
+
+const openHistoryPanel = (): void => {
+  if (!historyPanel.hidden) return;
+  focusBeforeHistory = focusedElement();
+  updateHistoryCount();
+  historyPanel.hidden = false;
+  exportHistoryButton.focus();
+};
+
+const closeHistoryPanel = (): void => {
+  if (historyPanel.hidden) return;
+  historyPanel.hidden = true;
+  restoreFocus(focusBeforeHistory);
+  focusBeforeHistory = null;
+};
+
+const openResetDialog = (): void => {
+  if (rolling || !resetDialogBackdrop.hidden) return;
+  focusBeforeDialog = focusedElement();
+  resetDialogBackdrop.hidden = false;
+  confirmResetButton.focus();
+};
+
+const closeResetDialog = (): void => {
+  if (resetDialogBackdrop.hidden) return;
+  resetDialogBackdrop.hidden = true;
+  restoreFocus(focusBeforeDialog);
+  focusBeforeDialog = null;
 };
 
 const fitResultCard = (): void => {
@@ -146,7 +209,8 @@ const showResult = (faceId: string, promptId: string): void => {
   card.hidden = false;
   fitResultCard();
   app.dataset["visualState"] = "result";
-  status.textContent = dieFaceLabel(face);
+  status.hidden = true;
+  status.textContent = "";
   if (!config.behavior.keepResultVisible && config.animation.resultVisibleMs !== null) {
     hideTimer = window.setTimeout(() => {
       card.hidden = true;
@@ -156,13 +220,13 @@ const showResult = (faceId: string, promptId: string): void => {
 
 const roll = (): void => {
   if (rolling) return;
-  resumePanel.hidden = true;
   rolling = true;
   window.clearTimeout(revealTimer);
   window.clearTimeout(hideTimer);
   card.hidden = true;
   app.dataset["visualState"] = "rolling";
   status.textContent = "抽選中…";
+  status.hidden = false;
   if (config.animation.rollSoundEnabled) void playBuiltInSound("roll");
   try {
     const random = new BrowserCryptoRandomSource();
@@ -181,6 +245,7 @@ const roll = (): void => {
       promptId: prompt.id,
       audienceTitle: prompt.audienceTitle,
     });
+    updateHistoryCount();
     save();
     renderer?.roll(face.id, randomHexSeed(random), () => {
       app.dataset["visualState"] = "landing";
@@ -192,11 +257,12 @@ const roll = (): void => {
     });
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "抽選できませんでした。";
+    status.hidden = false;
     rolling = false;
   }
 };
 
-const reset = (): void => {
+const resetHistory = (): void => {
   if (rolling) return;
   window.clearTimeout(revealTimer);
   window.clearTimeout(hideTimer);
@@ -204,16 +270,23 @@ const reset = (): void => {
   save();
   card.hidden = true;
   app.dataset["visualState"] = "idle";
-  resumePanel.hidden = true;
-  status.textContent = rollInstruction;
+  status.hidden = true;
+  status.textContent = "";
+  updateHistoryCount();
   renderer?.show(config.faces[0]?.id ?? "");
 };
 
 const downloadHistory = (): void => {
+  const now = new Date();
+  const date = [
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
   downloadTextFile(
-    JSON.stringify({ exportedAt: new Date().toISOString(), history: state.history }, null, 2),
+    JSON.stringify({ exportedAt: now.toISOString(), history: state.history }, null, 2),
     "application/json",
-    "topicue-session-history.json",
+    `topicue-history-${date}.json`,
   );
 };
 
@@ -499,6 +572,7 @@ const createCanvasRenderer = (host: HTMLElement): DieRenderer => {
 };
 
 state = loadState();
+updateHistoryCount();
 renderer = createRenderer(rendererHost);
 const restored = state.history.at(-1);
 if (restored === undefined) {
@@ -506,30 +580,21 @@ if (restored === undefined) {
 } else {
   renderer.show(restored.faceId);
   showResult(restored.faceId, restored.promptId);
-  const total = config.faces.flatMap((face) =>
-    face.enabled ? face.prompts.filter((prompt) => prompt.enabled) : [],
-  ).length;
-  const used = new Set(state.selection.usedPromptIds).size;
-  const summary = resumePanel.querySelector("p");
-  if (summary !== null) {
-    summary.textContent = `${used}件使用済み・残り${Math.max(0, total - used)}件`;
-  }
-  resumePanel.hidden = false;
-  status.textContent = "前回の抽選状態を復元しました";
 }
 if (restored === undefined && config.behavior.rollOnLoad) window.setTimeout(roll, 50);
 
 app.addEventListener("click", (event) => {
-  if (!(event.target instanceof HTMLElement)) return;
+  if (!(event.target instanceof Element)) return;
   const action = event.target.closest<HTMLButtonElement>("button")?.dataset["action"];
-  if (action === "roll") roll();
-  else if (action === "reset") reset();
-  else if (action === "history") downloadHistory();
-  else if (action === "resume") {
-    resumePanel.hidden = true;
-    status.textContent = rollInstruction;
-  } else if (action === "restart") reset();
-  else if (
+  if (action === actionNames.exportHistory) downloadHistory();
+  else if (action === actionNames.requestReset) openResetDialog();
+  else if (action === actionNames.cancelReset) closeResetDialog();
+  else if (action === actionNames.confirmReset) {
+    resetHistory();
+    closeResetDialog();
+  } else if (event.target.closest(interactiveUiSelector) !== null) {
+    return;
+  } else if (
     config.behavior.allowOverlayClick &&
     event.target.closest(".standalone-stage") !== null
   ) {
@@ -537,8 +602,62 @@ app.addEventListener("click", (event) => {
   }
 });
 
+const trapDialogFocus = (event: KeyboardEvent): void => {
+  const buttons = [...resetDialog.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+  const first = buttons.at(0);
+  const last = buttons.at(-1);
+  if (first === undefined || last === undefined) return;
+  const active = focusedElement();
+  if (event.shiftKey && (active === first || !resetDialog.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (
+    !event.shiftKey &&
+    (active === last || active === null || !resetDialog.contains(active))
+  ) {
+    event.preventDefault();
+    first.focus();
+  }
+};
+
 window.addEventListener("keydown", (event) => {
-  if (config.behavior.allowKeyboard && (event.code === "Space" || event.code === "Enter")) {
+  if (!resetDialogBackdrop.hidden) {
+    if (event.code === "Escape") {
+      event.preventDefault();
+      closeResetDialog();
+    } else if (event.code === "Tab") {
+      trapDialogFocus(event);
+    } else if (event.code === "Enter" && !event.repeat) {
+      event.preventDefault();
+      resetHistory();
+      closeResetDialog();
+    }
+    return;
+  }
+  if (event.code === "Escape" && !historyPanel.hidden) {
+    event.preventDefault();
+    closeHistoryPanel();
+    return;
+  }
+  if (event.code === "KeyH" && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    if (historyPanel.hidden) openHistoryPanel();
+    else closeHistoryPanel();
+    return;
+  }
+  if (event.code === "KeyR" && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    openResetDialog();
+    return;
+  }
+  if (!historyPanel.hidden) return;
+  const targetIsInteractive =
+    event.target instanceof Element && event.target.closest(interactiveUiSelector) !== null;
+  if (
+    config.behavior.allowKeyboard &&
+    !targetIsInteractive &&
+    (event.code === "Space" || event.code === "Enter")
+  ) {
     event.preventDefault();
     roll();
   }

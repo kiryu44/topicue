@@ -123,7 +123,7 @@ describe("renderer and standalone", () => {
 
     expect(
       getRollInstruction({ ...config.behavior, allowOverlayClick: false, allowKeyboard: false }),
-    ).toContain("振る」ボタン");
+    ).toContain("OBS操作設定");
     expect(
       getRollInstruction({ ...config.behavior, allowOverlayClick: true, allowKeyboard: false }),
     ).toContain("クリック");

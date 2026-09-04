@@ -1,10 +1,65 @@
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
+
+import type { PromptPackConfigV1 } from "@/modules/prompt-pack/domain/schema";
+import { generateStandaloneHtml } from "@/modules/standalone-export/generator";
+
+import { makeDeck } from "../fixtures/pack";
+
+import type { Page } from "@playwright/test";
+
+interface StandaloneFixture {
+  directory: string;
+  path: string;
+}
+
+const writeStandaloneFixture = async (
+  config: PromptPackConfigV1,
+  directoryPrefix: string,
+): Promise<StandaloneFixture> => {
+  const runtime = await readFile(
+    new URL("../../public/standalone-runtime.js", import.meta.url),
+    "utf8",
+  );
+  const directory = await mkdtemp(join(tmpdir(), directoryPrefix));
+  const path = join(directory, "prompt-dice-obs.html");
+  await writeFile(path, generateStandaloneHtml(config, runtime), "utf8");
+  return { directory, path };
+};
+
+const openStandaloneHistoryPanel = async (page: Page): Promise<void> => {
+  await page.keyboard.press("h");
+  await expect(page.locator(".standalone-history-panel")).toBeVisible();
+};
+
+const expectStandaloneHistoryCount = async (page: Page, expectedCount: number): Promise<void> => {
+  await openStandaloneHistoryPanel(page);
+  await expect(page.locator("[data-history-count]")).toHaveText(String(expectedCount));
+  const downloadPromise = page.waitForEvent("download");
+  await page.keyboard.press("Enter");
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^topicue-history-\d{4}-\d{2}-\d{2}\.json$/u);
+  const path = await download.path();
+  if (path === null) throw new Error("履歴JSONを取得できませんでした。");
+  const source = await readFile(path, "utf8");
+  expect(source.match(/"promptId":/gu) ?? []).toHaveLength(expectedCount);
+  await page.keyboard.press("h");
+  await expect(page.locator(".standalone-history-panel")).toBeHidden();
+};
+
+const expectNoSeriousAccessibilityViolations = async (page: Page): Promise<void> => {
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact ?? ""),
+    ),
+  ).toEqual([]);
+};
 
 test("marketing and create pages are usable and accessible", async ({ page }) => {
   await page.goto("/");
@@ -18,16 +73,29 @@ test("marketing and create pages are usable and accessible", async ({ page }) =>
     "text-decoration-line",
     "none",
   );
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(
-    results.violations.filter((violation) =>
-      ["critical", "serious"].includes(violation.impact ?? ""),
-    ),
-  ).toEqual([]);
+  await expect(page.getByRole("link", { name: "OBSでの使い方を見る" })).toHaveAttribute(
+    "href",
+    "/guide/obs",
+  );
+  await expectNoSeriousAccessibilityViolations(page);
   await page.getByRole("link", { name: "トークダイスを作る" }).click();
   await expect(
     page.getByRole("heading", { name: "配信の流れに合うお題セットを選ぶ" }),
   ).toBeVisible();
+});
+
+test("OBS guide separates setup steps from overlay controls", async ({ page }) => {
+  await page.goto("/guide/obs");
+  await expect(page.getByRole("heading", { name: "TopicueをOBSで使う" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "OBSへ追加する" })).toBeVisible();
+  await expect(page.getByText("ローカルファイルを有効化")).toBeVisible();
+  await expect(page.getByRole("img", { name: "OBSブラウザソース設定の画面図" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "OBS対話画面での操作" })).toBeVisible();
+  await expect(page.getByText("履歴Resetは即時実行されません。")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await expectNoSeriousAccessibilityViolations(page);
 });
 
 test("sample CTA opens a dice that rolls immediately and can roll again", async ({ page }) => {
@@ -193,17 +261,15 @@ test("creates, resizes, and restores a browser-local Pack", async ({ page }) => 
   await expect(targetFps).toHaveValue("30");
   await targetFps.selectOption("60");
   await expect(targetFps).toHaveValue("60");
-  const studioAccessibility = await new AxeBuilder({ page }).analyze();
-  expect(
-    studioAccessibility.violations.filter((violation) =>
-      ["critical", "serious"].includes(violation.impact ?? ""),
-    ),
-  ).toEqual([]);
+  await expectNoSeriousAccessibilityViolations(page);
   await page.getByText("OBSでの操作と結果表示").click();
   const rollOnLoad = page.getByRole("checkbox", { name: "HTML読込時に自動で振る" });
   await expect(rollOnLoad).toBeVisible();
+  await expect(rollOnLoad).not.toBeChecked();
   await expect(rollOnLoad).toHaveCSS("width", "16px");
   await expect(rollOnLoad.locator("..")).toHaveCSS("border-top-style", "solid");
+  await page.getByRole("checkbox", { name: "ダイス画面のクリックを許可" }).check();
+  await page.getByRole("checkbox", { name: "Space・Enterキーを許可" }).check();
   await page.getByRole("button", { name: "Direct：1面1結果" }).click();
   await expect(page.getByRole("checkbox", { name: "有効" })).toHaveCount(0);
   const faceCount = page.getByRole("combobox", { name: "ダイスの面数と形状" });
@@ -221,6 +287,15 @@ test("creates, resizes, and restores a browser-local Pack", async ({ page }) => 
   await page.getByRole("button", { name: "OBS用HTMLを作る" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("prompt-dice-obs.html");
+  const exportNotice = page.locator(".obs-export-notice");
+  await expect(exportNotice).toBeVisible();
+  await expect(
+    exportNotice.getByRole("heading", { name: "OBS用HTMLを作成しました" }),
+  ).toBeVisible();
+  await expect(exportNotice.getByText("prompt-dice-obs.html", { exact: true })).toBeVisible();
+  await expect(
+    exportNotice.getByRole("link", { name: "OBSでの使い方を詳しく見る" }),
+  ).toHaveAttribute("href", "/guide/obs");
   const path = await download.path();
   const html = await readFile(path, "utf8");
   expect(html).toContain("window.__PROMPT_DICE_CONFIG__");
@@ -230,6 +305,12 @@ test("creates, resizes, and restores a browser-local Pack", async ({ page }) => 
   const standalonePath = join(standaloneDirectory, "prompt-dice-obs.html");
   await copyFile(path, standalonePath);
   await page.goto(pathToFileURL(standalonePath).href);
+  await expect(page.locator("#app")).toHaveAttribute("data-visual-state", "idle");
+  await expect(page.locator(".standalone-card")).toBeHidden();
+  await expect(page.locator(".standalone-status")).toBeHidden();
+  await expect(page.getByRole("button", { name: "振る", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "履歴をリセット" })).toBeHidden();
+  await expect(page.getByText("履歴JSON", { exact: true })).toHaveCount(0);
   const usesCanvasFallback = await page.evaluate(() =>
     document.body.classList.contains("canvas-fallback"),
   );
@@ -237,17 +318,137 @@ test("creates, resizes, and restores a browser-local Pack", async ({ page }) => 
     await page.locator(".standalone-renderer canvas").dispatchEvent("webglcontextlost");
     await page.waitForTimeout(500);
   }
-  await page.getByRole("button", { name: "振る", exact: true }).click();
+  await page.keyboard.press("Space");
   await expect(page.locator(".standalone-card")).toBeVisible({ timeout: 10_000 });
+  await expectStandaloneHistoryCount(page, 1);
   await page.reload();
-  await expect(page.getByText("前回のセッションがあります")).toBeVisible();
-  await page.getByRole("button", { name: "続きから振る" }).click();
+  await expect(page.locator(".standalone-card")).toBeVisible();
+  await page.waitForTimeout(500);
+  await expectStandaloneHistoryCount(page, 1);
   await rm(standaloneDirectory, { recursive: true, force: true });
 
   await page.goto("/create");
   await page.getByRole("button", { name: "複製" }).click();
   await expect(page).toHaveURL(/\/studio\//u);
   await expect(page.getByRole("combobox", { name: "ダイスの面数と形状" })).toHaveValue("9");
+});
+
+test("rolls once on load only when explicitly enabled and does not reroll restored state", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  const config = makeDeck(1);
+  config.behavior.rollOnLoad = true;
+  config.animation.rollSoundEnabled = false;
+  config.animation.landingSoundEnabled = false;
+  const fixture = await writeStandaloneFixture(config, "topicue-roll-on-load-");
+  try {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(pathToFileURL(fixture.path).href);
+    await expect(page.locator("#app")).toHaveAttribute("data-visual-state", "result", {
+      timeout: 10_000,
+    });
+    await expect(page.locator(".standalone-card")).toBeVisible();
+    await expectStandaloneHistoryCount(page, 1);
+    await page.keyboard.press("Space");
+    await page.locator(".standalone-renderer").click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(1_000);
+    await expectStandaloneHistoryCount(page, 1);
+
+    await page.reload();
+    await expect(page.locator(".standalone-card")).toBeVisible();
+    await page.waitForTimeout(1_000);
+    await expectStandaloneHistoryCount(page, 1);
+  } finally {
+    await rm(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("operates standalone rolls and hidden history management without overlay controls", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  const config = makeDeck(2);
+  config.behavior.allowKeyboard = true;
+  config.behavior.allowOverlayClick = true;
+  config.animation.rollSoundEnabled = false;
+  config.animation.landingSoundEnabled = false;
+  const fixture = await writeStandaloneFixture(config, "topicue-standalone-controls-");
+
+  try {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(pathToFileURL(fixture.path).href);
+    const app = page.locator("#app");
+    const card = page.locator(".standalone-card");
+    const historyPanel = page.locator(".standalone-history-panel");
+    const resetDialog = page.getByRole("dialog", { name: "履歴をリセットしますか？" });
+
+    await expect(app).toHaveAttribute("data-visual-state", "idle");
+    await expect(card).toBeHidden();
+    await expect(page.locator(".standalone-status")).toBeHidden();
+    await expect(page.getByRole("button", { name: "振る", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "履歴をリセット" })).toBeHidden();
+    await expect(page.getByText("履歴JSON", { exact: true })).toHaveCount(0);
+    await expectNoSeriousAccessibilityViolations(page);
+
+    await page.keyboard.press("Space");
+    await expect(app).toHaveAttribute("data-visual-state", "result", { timeout: 10_000 });
+    await expect(page.locator(".standalone-status")).toBeHidden();
+    await expectStandaloneHistoryCount(page, 1);
+
+    await card.click();
+    await page.waitForTimeout(600);
+    await expectStandaloneHistoryCount(page, 1);
+
+    await page.keyboard.press("Enter");
+    await expect(app).toHaveAttribute("data-visual-state", "result", { timeout: 10_000 });
+    await expectStandaloneHistoryCount(page, 2);
+
+    await page.locator(".standalone-renderer").click({ position: { x: 10, y: 10 } });
+    await page.keyboard.press("Space");
+    await expect(app).toHaveAttribute("data-visual-state", "result", { timeout: 10_000 });
+    await expectStandaloneHistoryCount(page, 3);
+
+    await page.keyboard.press("h");
+    await expect(historyPanel).toBeVisible();
+    await expect(page.getByRole("button", { name: "履歴を書き出す" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "履歴をリセット" })).toBeVisible();
+    await page.getByRole("button", { name: "履歴をリセット" }).click();
+    await expect(resetDialog).toBeVisible();
+    await page.getByRole("button", { name: "キャンセル" }).click();
+    await expect(resetDialog).toBeHidden();
+    await expect(historyPanel).toBeVisible();
+    await page.keyboard.press("h");
+    await expect(historyPanel).toBeHidden();
+    await page.keyboard.press("h");
+    await expect(historyPanel).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(historyPanel).toBeHidden();
+
+    await page.locator(".standalone-stage").focus();
+    await page.keyboard.press("r");
+    await expect(resetDialog).toBeVisible();
+    await expect(resetDialog).toHaveAttribute("aria-modal", "true");
+    await expectNoSeriousAccessibilityViolations(page);
+    await expect(page.getByRole("button", { name: "リセット", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "キャンセル" })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByRole("button", { name: "リセット", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(resetDialog).toBeHidden();
+    await expect(page.locator(".standalone-stage")).toBeFocused();
+    await expectStandaloneHistoryCount(page, 3);
+
+    await page.keyboard.press("r");
+    await expect(resetDialog).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(resetDialog).toBeHidden();
+    await expect(card).toBeHidden();
+    await expectStandaloneHistoryCount(page, 0);
+  } finally {
+    await rm(fixture.directory, { recursive: true, force: true });
+  }
 });
 
 test("detects a conflicting edit from another browser tab", async ({ page, context }) => {

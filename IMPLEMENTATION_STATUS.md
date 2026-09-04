@@ -55,6 +55,7 @@ Next.js画面
 | `/create`          | 保存済みPack一覧、複製、個別削除、全初期化、JSON Import、4種類のテンプレート |
 | `/sample`          | 深夜雑談テンプレートのダイスを表示し、読込後に自動で1回抽選                  |
 | `/studio/[packId]` | IndexedDBからPackを読み込み、編集、Preview、Import・Export、OBS用HTML生成    |
+| `/guide/obs`       | OBS Browser Sourceへの導入手順、配信中の操作、確認Dialogの説明               |
 
 `/api`、`/o`、`/h`、`/r`のRouteは存在しません。Hosted Overlay、Host Dock、Remote操作画面も存在しません。
 
@@ -74,6 +75,8 @@ Packが保持する項目は次のとおりです。
 - テーマ、背景、本体色、輪郭色、文字色、強調色、フォント、結果カード、描画品質
 - アニメーション時間、結果表示待ち時間、結果表示時間、動きの強さ、モーション軽減、効果音
 - OBS用HTMLの起動時抽選、クリック、キーボード、カテゴリー表示、結果表示、FPS
+
+新規Packでは起動時抽選、ダイス面のクリック、Space / Enter操作を既定で無効にしています。起動時抽選を有効にした既存PackやImport設定は、その明示的な設定を維持します。
 
 主な上限は次のとおりです。
 
@@ -348,16 +351,22 @@ Standalone HTMLには次が実装されています。
 - 起動時抽選
 - ダイス領域のクリック操作
 - Space / Enter操作
-- 常時利用できる`振る`ボタン
 - 結果カードのカテゴリー表示切替
 - 結果の常時表示または時間指定で非表示
 - Local Storageへの抽選Stateと履歴保存
-- 再読込時の「続きから振る」「最初からやり直す」
-- 履歴Reset
-- 履歴JSON Download
+- 再読込時の前回結果と抽選Stateの自動復元
+- `H`キーでのみ表示する小型の履歴管理Panel
+- `R`キーまたは履歴Panelから開く確認Dialogを経由した履歴Reset
+- 「履歴を書き出す」によるJSON Download
 - 回転音、着地音
 
-操作ボタンはStandalone StageのHoverまたはFocus中に表示します。クリックとKeyboard操作はPack設定で許可した場合だけダイス領域から実行できます。`振る`ボタン自体は許可設定に関係なく動作します。
+通常表示には操作ボタンや操作説明を配置しません。待機中と結果表示中の状態文言も非表示です。抽選中の状態文言とRuntime Errorだけを表示します。クリック操作を許可した場合はダイスまたは空きStage、Keyboard操作を許可した場合はSpace / Enterで抽選します。結果カード、履歴Panel、確認Dialog、Buttonには`data-interactive-ui`を付け、Event bubblingによる抽選を防ぎます。同じ抽選の演出中に届いた追加操作は無視します。
+
+履歴Panelは通常時に非表示で、`H`で開閉し、Escでも閉じます。履歴件数、「履歴を書き出す」、「履歴をリセット」を表示します。書き出し形式はJSON、ファイル名は`topicue-history-YYYY-MM-DD.json`です。
+
+履歴Resetは即時実行しません。`R`または履歴Panelの操作で「履歴をリセットしますか？ この操作は元に戻せません。」という確認Dialogを開き、確認後だけ実行します。Dialogは`role="dialog"`、`aria-modal="true"`、Labelと説明の関連付け、Focus trap、初期Focus、Escでの取消、終了後のFocus復元を実装しています。Dialogを開いた状態ではEnterでもResetを確定できます。
+
+起動時抽選が無効な場合は、初期表示を待機状態にして結果カードを表示しません。起動時抽選が有効な場合だけ、初回起動時に1回抽選します。保存済みセッションがある再読込では、最後の結果と履歴を自動復元しますが、新しい抽選は実行しません。
 
 Standalone HTMLのCSPは次を含みます。
 
@@ -397,11 +406,18 @@ Standaloneへ含めるPrompt情報は次のとおりです。
 
 ## 15. OBSでの使用手順
 
-1. Studioで「OBS用HTMLを作る」を押し、`prompt-dice-obs.html`を保存します。
-2. OBSの「ソース」で「ブラウザ」を追加します。
-3. 「ローカルファイル」を有効にして、保存したHTMLを選択します。
-4. 横配信では1920×1080、縦配信では1080×1920を指定できます。
-5. OBSの「対話」から、Hover時に表示される「振る」ボタンを操作できます。
+StudioのImport・Export欄には短い導入手順と主要Shortcutを表示します。「OBS用HTMLを作る」でDownloadが完了すると、同じStudio内に詳細な次の手順を表示します。トップページとStudioから`/guide/obs`へ移動できます。
+
+`/guide/obs`では次の順に説明します。
+
+1. Studioで「OBS用HTMLを作る」を押し、`prompt-dice-obs.html`を保存する
+2. OBSの「ソース」で「ブラウザ」を追加する
+3. 「ローカルファイル」を有効にして、保存したHTMLを選択する
+4. 1920×1080を基準に、配信画面へ表示サイズを合わせる
+5. OBSで追加したソースを右クリックし、「対話」を開く
+6. Studioで許可した操作に応じて、クリックまたはSpace / Enterで抽選する
+
+同じGuideに`H`、`R`、Escの役割と、履歴Resetは確認後にだけ実行されることも記載しています。Guide内の画面表現は、実際のOBS Screen Captureではなく、内容を明記したHTML / CSSの画面図です。
 
 上記は生成HTMLの構造とOBS Browser SourceのLocal File利用を前提にした手順です。このリポジトリではOBS Desktopを自動起動するテストは行っていません。
 
@@ -460,8 +476,8 @@ pnpm openapi:check
 
 ```text
 src/app/                                      Next.js Route、Layout、Global CSS
-src/components/                               画面間で共有するBrand UI Component
-src/config/                                   表示名などのBrand設定
+src/components/                               画面間で共有するBrand UI、OBS手順Component
+src/config/                                   表示名、OBS導入手順、Shortcutなどの設定
 src/modules/prompt-pack/domain/               Pack Schema、Theme、既定値、制限、表示規則
 src/modules/prompt-pack/application/          JSON / CSV変換
 src/modules/prompt-pack/infrastructure/       IndexedDB、Template読込
@@ -488,6 +504,8 @@ Studioの主なUI Componentは次のとおりです。
 - `SelectionSettings`: 抽選方式と抽選ポリシー
 - `ObsBehaviorSettings`: OBS操作と結果表示
 - `ImportExportControls`: JSON / CSV / OBS用HTMLのImport・Export
+- `ObsQuickGuide`: Studioの短いOBS導入手順とGuideへの導線
+- `ObsExportNotice`: OBS用HTML生成後に表示する詳細な次の手順
 - `AppearanceColorControls`: 4色の一時編集、取消、反映
 - `LivePreview`: 比率、背景、Scale、3D表示、結果カード
 - `DicePresentation`: React版WebGL RendererとCanvas fallback
@@ -592,7 +610,7 @@ pnpm build
 | Unit          | PASS、34件      | Schema、Theme、保存形式、抽選、Geometry、描画設定、Text、Standalone公開DataとScript Escape |
 | Integration   | PASS、1件       | Sample JSON、Bundle Runtime、単一HTML、CSP、外部Scriptなし、配信者メモ除外                 |
 | Distribution  | PASS、1件       | Seed固定で100,000回抽選し、6候補が各15,500〜17,900回に入ること                             |
-| Playwright    | PASS、5件       | 画面導線、axe、Responsive、Sample、IndexedDB、Theme、色反映、9面、Standalone、競合検出     |
+| Playwright    | PASS、8件       | 画面導線、OBS Guide、axe、Responsive、Sample、IndexedDB、Theme、Standalone、競合検出       |
 | Next.js build | PASS            | OpenAPI確認とStandalone生成を含むProduction Build                                          |
 
 PlaywrightのStudio Testには次を含みます。
@@ -613,9 +631,20 @@ PlaywrightのStudio Testには次を含みます。
 - Checkboxの配置とBorder
 - Direct 9面への変更と再読込後の復元
 - JSON / OBS用HTML Download
+- Studioの短いOBS導入手順、HTML生成後の詳細手順、`/guide/obs`への導線
+- `/guide/obs`の導入手順、操作表、画面図、横Overflow、Accessibility
 - Local FileとしてのStandalone実行
 - StandaloneのWebGL Context Lost
+- 新規Packの起動時抽選が無効で、手動操作前は待機状態かつ結果カード非表示であること
+- 起動時抽選を明示的に有効にした場合、初回起動時に1回だけ抽選すること
+- Standalone通常表示に常設操作ボタンがないこと
+- Standalone待機時および結果表示時に操作説明が表示されないこと
+- Space / Enter / Stage clickによる抽選と、演出中の追加操作無視
+- 結果カードおよび管理UIのClickで抽選しないこと
+- `H`による履歴Panelの開閉、Esc close、JSON書き出しと日付入りファイル名
+- `R`による確認Dialog、Focus trap、Esc取消、Enter確定、確定前の履歴維持
 - Standalone Sessionの再読込後復元
+- Standalone Session復元の前後で履歴件数が増えないこと
 - 別Tab競合通知
 
 ## 22. 自動検証していない項目

@@ -59,6 +59,9 @@ const HomePage = () => {
           <p className="muted">
             設定と3Dランタイムを1つのHTMLに内蔵。通信障害の影響を受けず、WebGL不可時は2D表示へ降級します。
           </p>
+          <Link className="feature-link" href="/guide/obs">
+            OBSでの使い方を見る
+          </Link>
         </article>
       </section>
     </main>

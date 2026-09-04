@@ -23,6 +23,9 @@ describe("local-first public assets", () => {
     expect(runtime.length).toBeGreaterThan(100_000);
     expect(html).toContain("connect-src 'none'");
     expect(html).toContain("standalone-renderer");
+    expect(html).toContain("standalone-history-panel");
+    expect(html).toContain("export-history");
+    expect(html).not.toContain('data-action="roll"');
     expect(html).toContain("JSON Importサンプル");
     expect(html).not.toContain(privateHostNote);
     expect(html).not.toMatch(/<script[^>]+src=/u);

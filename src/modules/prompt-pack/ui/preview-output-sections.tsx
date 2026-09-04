@@ -1,3 +1,4 @@
+import { ObsQuickGuide } from "@/components/obs-guide-content";
 import { isIntegerInRange } from "@/shared/number";
 
 import { selectionModeSchema, selectionPolicySchema } from "../domain/config-schema";
@@ -210,6 +211,7 @@ export const ImportExportControls = ({
   onPastedJsonImport,
 }: ImportExportControlsProps) => (
   <>
+    <ObsQuickGuide />
     <p className="field-help">
       JSONはすべてのPack設定を保持する正式なバックアップです。CSVはお題一覧の編集用で、テーマ、アニメーション、短い面名などは保持しません。
     </p>

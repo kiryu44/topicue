@@ -38,6 +38,7 @@ import {
 } from "../infrastructure/browser-pack-store";
 
 import { DiceSettingsPanel } from "./dice-settings-panel";
+import { ObsExportNotice } from "./obs-export-notice";
 import { PreviewOutputPanel } from "./preview-output-panel";
 import { PromptEditorPanel } from "./prompt-editor-panel";
 
@@ -110,6 +111,7 @@ export const Studio = ({ packId }: StudioProps) => {
   const [error, setError] = useState("");
   const [importMessage, setImportMessage] = useState("");
   const [jsonImportText, setJsonImportText] = useState("");
+  const [showObsExportNotice, setShowObsExportNotice] = useState(false);
   const [lastBackupAt, setLastBackupAtState] = useState<string | null>(null);
   const [previewState, setPreviewState] = useState<SessionSelectionState>(initialSelectionState);
   const [previewRoll, setPreviewRoll] = useState<PreviewRoll | null>(null);
@@ -409,6 +411,7 @@ export const Studio = ({ packId }: StudioProps) => {
         "text/html;charset=utf-8",
         "prompt-dice-obs.html",
       );
+      setShowObsExportNotice(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "出力できませんでした。");
     }
@@ -495,6 +498,7 @@ export const Studio = ({ packId }: StudioProps) => {
         </button>
         <span className="save-state">{saveState} · このブラウザ</span>
       </header>
+      {showObsExportNotice && <ObsExportNotice onClose={() => setShowObsExportNotice(false)} />}
       <div className="notice" role="status">
         最終JSONバックアップ: {formatBackupStatus(lastBackupAt)}
         {backupIsOld(lastBackupAt) && " — 7日以上バックアップされていません。"}
