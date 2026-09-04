@@ -1,6 +1,6 @@
 # Topicue 現行実装
 
-- 最終確認日: 2026-09-03
+- 最終確認日: 2026-09-04
 - 対象: このリポジトリの現在の作業ツリー
 - 記載基準: `src`、`public`、`scripts`、設定ファイル、テストコード、および実行した検証結果から確認できる事実
 
@@ -351,6 +351,7 @@ Standalone HTMLには次が実装されています。
 - 起動時抽選
 - ダイス領域のクリック操作
 - Space / Enter操作
+- OBS CEFと通常Browserのキー値を共通化するKeyboard入力の正規化
 - 結果カードのカテゴリー表示切替
 - 結果の常時表示または時間指定で非表示
 - Local Storageへの抽選Stateと履歴保存
@@ -360,11 +361,11 @@ Standalone HTMLには次が実装されています。
 - 「履歴を書き出す」によるJSON Download
 - 回転音、着地音
 
-通常表示には操作ボタンや操作説明を配置しません。待機中と結果表示中の状態文言も非表示です。抽選中の状態文言とRuntime Errorだけを表示します。クリック操作を許可した場合はダイスまたは空きStage、Keyboard操作を許可した場合はSpace / Enterで抽選します。結果カード、履歴Panel、確認Dialog、Buttonには`data-interactive-ui`を付け、Event bubblingによる抽選を防ぎます。同じ抽選の演出中に届いた追加操作は無視します。
+通常表示には操作ボタンや操作説明を配置しません。待機中と結果表示中の状態文言も非表示です。抽選中の状態文言とRuntime Errorだけを表示します。クリック操作を許可した場合はダイスまたは空きStage、Keyboard操作を許可した場合はSpace / Enterで抽選します。Keyboard操作は`KeyboardEvent.key`、`code`、従来の`keyCode`を内部Commandへ正規化し、OBS CEFで`code`が空または誤値になる場合も処理します。結果カード、履歴Panel、確認Dialog、Buttonには`data-interactive-ui`を付け、Event bubblingによる抽選を防ぎます。同じ抽選の演出中に届いた追加操作は無視します。
 
 履歴Panelは通常時に非表示で、`H`で開閉し、Escでも閉じます。履歴件数、「履歴を書き出す」、「履歴をリセット」を表示します。書き出し形式はJSON、ファイル名は`topicue-history-YYYY-MM-DD.json`です。
 
-履歴Resetは即時実行しません。`R`または履歴Panelの操作で「履歴をリセットしますか？ この操作は元に戻せません。」という確認Dialogを開き、確認後だけ実行します。Dialogは`role="dialog"`、`aria-modal="true"`、Labelと説明の関連付け、Focus trap、初期Focus、Escでの取消、終了後のFocus復元を実装しています。Dialogを開いた状態ではEnterでもResetを確定できます。
+履歴Resetは即時実行しません。`R`または履歴Panelの操作で「履歴をすべてリセットしますか？」という確認Dialogを開き、削除件数と元に戻せないことを表示したうえで、確認後だけ実行します。Dialogは背景全体を暗くしてぼかし、Themeに依存しない高Contrastな文字色と、通常操作・破壊操作を区別したButton色を使用します。`role="dialog"`、`aria-modal="true"`、Labelと説明の関連付け、Focus trap、初期Focus、Escでの取消、終了後のFocus復元を実装しています。初期FocusはReset Buttonに置くため、その状態のEnterでResetを確定できます。Cancel ButtonへFocusを移した場合、EnterはCancelとして動作します。
 
 起動時抽選が無効な場合は、初期表示を待機状態にして結果カードを表示しません。起動時抽選が有効な場合だけ、初回起動時に1回抽選します。保存済みセッションがある再読込では、最後の結果と履歴を自動復元しますが、新しい抽選は実行しません。
 
@@ -587,7 +588,7 @@ Prettierは2スペース、ダブルクォート、セミコロン、LF、100文
 
 ## 21. 自動検証結果
 
-2026-09-03に現在の作業ツリーで次を実行しました。
+2026-09-04に現在の作業ツリーで次を実行しました。
 
 ```bash
 pnpm openapi:check
@@ -607,7 +608,7 @@ pnpm build
 | Prettier      | PASS            | Prettier対象ファイル                                                                       |
 | ESLint        | PASS、Warning 0 | Next.js、React、TypeScript、Repository独自Rule                                             |
 | TypeScript    | PASS            | `tsc --noEmit`                                                                             |
-| Unit          | PASS、34件      | Schema、Theme、保存形式、抽選、Geometry、描画設定、Text、Standalone公開DataとScript Escape |
+| Unit          | PASS、41件      | Schema、Theme、保存形式、抽選、Geometry、描画、Text、OBS Keyboard、公開DataとScript Escape |
 | Integration   | PASS、1件       | Sample JSON、Bundle Runtime、単一HTML、CSP、外部Scriptなし、配信者メモ除外                 |
 | Distribution  | PASS、1件       | Seed固定で100,000回抽選し、6候補が各15,500〜17,900回に入ること                             |
 | Playwright    | PASS、8件       | 画面導線、OBS Guide、axe、Responsive、Sample、IndexedDB、Theme、Standalone、競合検出       |
@@ -640,6 +641,7 @@ PlaywrightのStudio Testには次を含みます。
 - Standalone通常表示に常設操作ボタンがないこと
 - Standalone待機時および結果表示時に操作説明が表示されないこと
 - Space / Enter / Stage clickによる抽選と、演出中の追加操作無視
+- OBS CEFを模した空または誤った`event.code`でのSpace / Enter / H / R / Esc操作
 - 結果カードおよび管理UIのClickで抽選しないこと
 - `H`による履歴Panelの開閉、Esc close、JSON書き出しと日付入りファイル名
 - `R`による確認Dialog、Focus trap、Esc取消、Enter確定、確定前の履歴維持

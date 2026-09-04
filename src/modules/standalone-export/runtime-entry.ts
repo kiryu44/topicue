@@ -37,6 +37,7 @@ import { BrowserCryptoRandomSource, randomHexSeed } from "@/modules/selection/ra
 import { initialSelectionState, sessionSelectionStateSchema } from "@/modules/selection/types";
 import { downloadTextFile } from "@/shared/download-file";
 
+import { resolveStandaloneKeyCommand, STANDALONE_KEY_COMMAND } from "./keyboard";
 import { publicStandaloneConfigSchema, type PublicStandaloneConfigV1 } from "./public-schema";
 
 import type { Quaternion } from "three";
@@ -92,7 +93,7 @@ const actionNames = {
 } as const;
 const interactiveUiSelector = "[data-interactive-ui]";
 
-app.innerHTML = `<section class="standalone-stage" tabindex="0" aria-label="トークダイス。${rollInstruction}"><div class="standalone-renderer" role="img" aria-label="3Dトークダイス"></div><div class="standalone-status" aria-live="polite" hidden></div><article class="standalone-card" data-interactive-ui hidden><small></small><h1></h1><p></p></article><aside class="standalone-history-panel" data-interactive-ui aria-labelledby="standalone-history-title" hidden><h2 id="standalone-history-title">履歴</h2><p><strong data-history-count>0</strong>件</p><button type="button" data-interactive-ui data-action="${actionNames.exportHistory}">履歴を書き出す</button><button type="button" data-interactive-ui data-action="${actionNames.requestReset}">履歴をリセット</button></aside><div class="standalone-dialog-backdrop" data-interactive-ui hidden><section class="standalone-dialog" role="dialog" aria-modal="true" aria-labelledby="standalone-reset-title" aria-describedby="standalone-reset-description"><h2 id="standalone-reset-title">履歴をリセットしますか？</h2><p id="standalone-reset-description">この操作は元に戻せません。</p><div class="standalone-dialog-actions"><button type="button" data-interactive-ui data-action="${actionNames.cancelReset}">キャンセル</button><button type="button" data-interactive-ui data-action="${actionNames.confirmReset}">リセット</button></div></section></div></section>`;
+app.innerHTML = `<section class="standalone-stage" tabindex="0" aria-label="トークダイス。${rollInstruction}"><div class="standalone-renderer" role="img" aria-label="3Dトークダイス"></div><div class="standalone-status" aria-live="polite" hidden></div><article class="standalone-card" data-interactive-ui hidden><small></small><h1></h1><p></p></article><aside class="standalone-history-panel" data-interactive-ui aria-labelledby="standalone-history-title" hidden><h2 id="standalone-history-title">履歴</h2><p><strong data-history-count>0</strong>件</p><button type="button" data-interactive-ui data-action="${actionNames.exportHistory}">履歴を書き出す</button><button type="button" data-interactive-ui data-action="${actionNames.requestReset}">履歴をリセット</button></aside><div class="standalone-dialog-backdrop" data-interactive-ui hidden><section class="standalone-dialog" role="dialog" aria-modal="true" aria-labelledby="standalone-reset-title" aria-describedby="standalone-reset-summary standalone-reset-description"><header class="standalone-dialog-header"><span class="standalone-dialog-icon" aria-hidden="true">!</span><div><p>確認</p><h2 id="standalone-reset-title">履歴をすべてリセットしますか？</h2></div></header><p class="standalone-reset-summary" id="standalone-reset-summary"><strong data-reset-history-count>0</strong>件の履歴を削除します。</p><p id="standalone-reset-description">削除した履歴は元に戻せません。続ける場合だけ「リセット」を選んでください。</p><div class="standalone-dialog-actions"><button type="button" data-interactive-ui data-action="${actionNames.cancelReset}">キャンセル</button><button type="button" data-interactive-ui data-action="${actionNames.confirmReset}">リセット</button></div><p class="standalone-dialog-shortcuts"><kbd>Esc</kbd> キャンセル <span aria-hidden="true">·</span> <kbd>Enter</kbd> リセット</p></section></div></section>`;
 
 const requiredElement = <T extends Element>(selector: string): T => {
   const element = app?.querySelector<T>(selector);
@@ -105,6 +106,7 @@ const stage = requiredElement<HTMLElement>(".standalone-stage");
 const card = requiredElement<HTMLElement>(".standalone-card");
 const historyPanel = requiredElement<HTMLElement>(".standalone-history-panel");
 const historyCount = requiredElement<HTMLElement>("[data-history-count]");
+const resetHistoryCount = requiredElement<HTMLElement>("[data-reset-history-count]");
 const resetDialogBackdrop = requiredElement<HTMLElement>(".standalone-dialog-backdrop");
 const resetDialog = requiredElement<HTMLElement>(".standalone-dialog");
 const exportHistoryButton = requiredElement<HTMLButtonElement>(
@@ -149,7 +151,9 @@ const restoreFocus = (element: HTMLElement | null): void => {
 };
 
 const updateHistoryCount = (): void => {
-  historyCount.textContent = String(state.history.length);
+  const count = String(state.history.length);
+  historyCount.textContent = count;
+  resetHistoryCount.textContent = count;
 };
 
 const openHistoryPanel = (): void => {
@@ -621,31 +625,40 @@ const trapDialogFocus = (event: KeyboardEvent): void => {
 };
 
 window.addEventListener("keydown", (event) => {
+  const keyCommand = resolveStandaloneKeyCommand(event);
   if (!resetDialogBackdrop.hidden) {
-    if (event.code === "Escape") {
+    if (keyCommand === STANDALONE_KEY_COMMAND.cancel) {
       event.preventDefault();
       closeResetDialog();
-    } else if (event.code === "Tab") {
+    } else if (keyCommand === STANDALONE_KEY_COMMAND.tab) {
       trapDialogFocus(event);
-    } else if (event.code === "Enter" && !event.repeat) {
-      event.preventDefault();
-      resetHistory();
-      closeResetDialog();
     }
     return;
   }
-  if (event.code === "Escape" && !historyPanel.hidden) {
+  if (keyCommand === STANDALONE_KEY_COMMAND.cancel && !historyPanel.hidden) {
     event.preventDefault();
     closeHistoryPanel();
     return;
   }
-  if (event.code === "KeyH" && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey) {
+  if (
+    keyCommand === STANDALONE_KEY_COMMAND.history &&
+    !event.repeat &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
     event.preventDefault();
     if (historyPanel.hidden) openHistoryPanel();
     else closeHistoryPanel();
     return;
   }
-  if (event.code === "KeyR" && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey) {
+  if (
+    keyCommand === STANDALONE_KEY_COMMAND.reset &&
+    !event.repeat &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
     event.preventDefault();
     openResetDialog();
     return;
@@ -656,7 +669,7 @@ window.addEventListener("keydown", (event) => {
   if (
     config.behavior.allowKeyboard &&
     !targetIsInteractive &&
-    (event.code === "Space" || event.code === "Enter")
+    keyCommand === STANDALONE_KEY_COMMAND.roll
   ) {
     event.preventDefault();
     roll();

@@ -18,6 +18,12 @@ interface StandaloneFixture {
   path: string;
 }
 
+interface ObsKeyboardEventInput {
+  code: string;
+  key: string;
+  keyCode: number;
+}
+
 const writeStandaloneFixture = async (
   config: PromptPackConfigV1,
   directoryPrefix: string,
@@ -35,6 +41,21 @@ const writeStandaloneFixture = async (
 const openStandaloneHistoryPanel = async (page: Page): Promise<void> => {
   await page.keyboard.press("h");
   await expect(page.locator(".standalone-history-panel")).toBeVisible();
+};
+
+const dispatchObsKeyboardEvent = async (
+  page: Page,
+  input: ObsKeyboardEventInput,
+): Promise<void> => {
+  await page.evaluate((keyboardInput) => {
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      code: keyboardInput.code,
+      key: keyboardInput.key,
+    });
+    Object.defineProperty(event, "keyCode", { value: keyboardInput.keyCode });
+    window.dispatchEvent(event);
+  }, input);
 };
 
 const expectStandaloneHistoryCount = async (page: Page, expectedCount: number): Promise<void> => {
@@ -350,7 +371,7 @@ test("rolls once on load only when explicitly enabled and does not reroll restor
     });
     await expect(page.locator(".standalone-card")).toBeVisible();
     await expectStandaloneHistoryCount(page, 1);
-    await page.keyboard.press("Space");
+    await dispatchObsKeyboardEvent(page, { code: "", key: " ", keyCode: 32 });
     await page.locator(".standalone-renderer").click({ position: { x: 10, y: 10 } });
     await page.waitForTimeout(1_000);
     await expectStandaloneHistoryCount(page, 1);
@@ -381,7 +402,7 @@ test("operates standalone rolls and hidden history management without overlay co
     const app = page.locator("#app");
     const card = page.locator(".standalone-card");
     const historyPanel = page.locator(".standalone-history-panel");
-    const resetDialog = page.getByRole("dialog", { name: "履歴をリセットしますか？" });
+    const resetDialog = page.getByRole("dialog", { name: "履歴をすべてリセットしますか？" });
 
     await expect(app).toHaveAttribute("data-visual-state", "idle");
     await expect(card).toBeHidden();
@@ -391,7 +412,7 @@ test("operates standalone rolls and hidden history management without overlay co
     await expect(page.getByText("履歴JSON", { exact: true })).toHaveCount(0);
     await expectNoSeriousAccessibilityViolations(page);
 
-    await page.keyboard.press("Space");
+    await dispatchObsKeyboardEvent(page, { code: "F7", key: " ", keyCode: 32 });
     await expect(app).toHaveAttribute("data-visual-state", "result", { timeout: 10_000 });
     await expect(page.locator(".standalone-status")).toBeHidden();
     await expectStandaloneHistoryCount(page, 1);
@@ -400,7 +421,7 @@ test("operates standalone rolls and hidden history management without overlay co
     await page.waitForTimeout(600);
     await expectStandaloneHistoryCount(page, 1);
 
-    await page.keyboard.press("Enter");
+    await dispatchObsKeyboardEvent(page, { code: "", key: "Unidentified", keyCode: 13 });
     await expect(app).toHaveAttribute("data-visual-state", "result", { timeout: 10_000 });
     await expectStandaloneHistoryCount(page, 2);
 
@@ -409,7 +430,7 @@ test("operates standalone rolls and hidden history management without overlay co
     await expect(app).toHaveAttribute("data-visual-state", "result", { timeout: 10_000 });
     await expectStandaloneHistoryCount(page, 3);
 
-    await page.keyboard.press("h");
+    await dispatchObsKeyboardEvent(page, { code: "F7", key: "h", keyCode: 72 });
     await expect(historyPanel).toBeVisible();
     await expect(page.getByRole("button", { name: "履歴を書き出す" })).toBeVisible();
     await expect(page.getByRole("button", { name: "履歴をリセット" })).toBeVisible();
@@ -422,13 +443,15 @@ test("operates standalone rolls and hidden history management without overlay co
     await expect(historyPanel).toBeHidden();
     await page.keyboard.press("h");
     await expect(historyPanel).toBeVisible();
-    await page.keyboard.press("Escape");
+    await dispatchObsKeyboardEvent(page, { code: "", key: "Esc", keyCode: 27 });
     await expect(historyPanel).toBeHidden();
 
     await page.locator(".standalone-stage").focus();
-    await page.keyboard.press("r");
+    await dispatchObsKeyboardEvent(page, { code: "", key: "Unidentified", keyCode: 82 });
     await expect(resetDialog).toBeVisible();
     await expect(resetDialog).toHaveAttribute("aria-modal", "true");
+    await expect(resetDialog.getByText("3件の履歴を削除します。")).toBeVisible();
+    await expect(resetDialog.getByText(/削除した履歴は元に戻せません/u)).toBeVisible();
     await expectNoSeriousAccessibilityViolations(page);
     await expect(page.getByRole("button", { name: "リセット", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
@@ -438,6 +461,14 @@ test("operates standalone rolls and hidden history management without overlay co
     await page.keyboard.press("Escape");
     await expect(resetDialog).toBeHidden();
     await expect(page.locator(".standalone-stage")).toBeFocused();
+    await expectStandaloneHistoryCount(page, 3);
+
+    await page.keyboard.press("r");
+    await expect(resetDialog).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "キャンセル" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(resetDialog).toBeHidden();
     await expectStandaloneHistoryCount(page, 3);
 
     await page.keyboard.press("r");
